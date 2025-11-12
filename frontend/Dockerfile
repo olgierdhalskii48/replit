@@ -1,0 +1,68 @@
+# Frontend Dockerfile for Next.js Legal Services Platform  
+FROM node:20-alpine AS base
+
+# Install dependencies for cross-platform compatibility
+FROM base AS deps
+RUN apk add --no-cache \
+    libc6-compat \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/cache/apk/*
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm ci --only=production --ignore-scripts --legacy-peer-deps
+
+# Development stage
+FROM base AS dev
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+COPY . .
+EXPOSE 5000
+ENV PORT=5000
+ENV HOSTNAME="0.0.0.0"
+CMD ["npm", "run", "dev"]
+
+# Build stage
+FROM base AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+COPY . .
+
+# Disable Next.js telemetry
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Build application
+RUN npm run build
+
+# Production image
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy built application
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 5000
+
+ENV PORT=5000
+ENV HOSTNAME="0.0.0.0"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:5000/ || exit 1
+
+CMD ["node", "server.js"]

@@ -1,0 +1,26 @@
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+select = [
+  "E",  # pycodestyle errors
+  "F",  # pyflakes
+  "I",  # isort
+  "B",  # flake8-bugbear
+]
+ignore = [
+  "E501",  # handled by black
+]
+
+[tool.ruff.isort]
+known-first-party = ["app"]
+profile = "black"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-q"
+testpaths = [
+  "app/tests",
+]

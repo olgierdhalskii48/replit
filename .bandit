@@ -1,0 +1,4 @@
+[bandit]
+targets: app
+exclude: app/tests,alembic,venv
+_skips: B101,B105,B107

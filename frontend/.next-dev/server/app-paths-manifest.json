@@ -1,0 +1,7 @@
+{
+  "/page": "app/page.js",
+  "/jak-to-dziala/page": "app/jak-to-dziala/page.js",
+  "/panel-operatora/page": "app/panel-operatora/page.js",
+  "/cennik/page": "app/cennik/page.js",
+  "/analiza-dokumentow/page": "app/analiza-dokumentow/page.js"
+}

@@ -1,0 +1,11 @@
+# Bandit configuration
+# See: https://bandit.readthedocs.io/en/latest/config.html
+
+exclude_dirs:
+  - app/tests
+  - alembic
+  - venv
+
+skips: ['B101', 'B105', 'B107']
+
+targets: ['app']

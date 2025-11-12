@@ -1,0 +1,173 @@
+# Staging Docker Compose for Legal Services Platform (Traefik + HTTPS)
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: legal_services_db_staging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-legal_services}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_password}
+    volumes:
+      - postgres_data_staging:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - legal_services_staging_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: legal_services_backend_staging
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@postgres:5432/${POSTGRES_DB:-legal_services}
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./uploads:/app/uploads
+      - ./app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - legal_services_staging_net
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=legal_services_staging_net"
+      - "traefik.http.routers.backend-staging.rule=(Host(`${STAGING_DOMAIN}`) || Host(`${STAGING_WWW_DOMAIN}`)) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend-staging.entrypoints=websecure"
+      - "traefik.http.routers.backend-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.services.backend-staging.loadbalancer.server.port=8000"
+      - "traefik.http.routers.backend-staging.middlewares=sec-headers-staging,compress-staging,ratelimit-staging@docker"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/api/readyz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+    container_name: legal_services_frontend_staging
+    environment:
+      - NODE_ENV=production
+      - BACKEND_URL=http://backend:8000/api
+      - NEXT_PUBLIC_API_BASE_URL=https://${STAGING_DOMAIN}
+    depends_on:
+      - backend
+    networks:
+      - legal_services_staging_net
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=legal_services_staging_net"
+      - "traefik.http.routers.frontend-staging.rule=Host(`${STAGING_DOMAIN}`) || Host(`${STAGING_WWW_DOMAIN}`)"
+      - "traefik.http.routers.frontend-staging.entrypoints=websecure"
+      - "traefik.http.routers.frontend-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.services.frontend-staging.loadbalancer.server.port=5000"
+      - "traefik.http.routers.frontend-staging.middlewares=sec-headers-staging,compress-staging,ratelimit-staging@docker"
+
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik_staging
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${STAGING_LETSENCRYPT_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--api.dashboard=false"
+      - "--accesslog=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt_staging:/letsencrypt
+    networks:
+      - legal_services_staging_net
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.http-catchall-staging.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall-staging.entrypoints=web"
+      - "traefik.http.routers.http-catchall-staging.middlewares=redirect-to-https-staging"
+      - "traefik.http.middlewares.redirect-to-https-staging.redirectscheme.scheme=https"
+      # Global security headers middleware (staging)
+      - "traefik.http.middlewares.sec-headers-staging.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.sec-headers-staging.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.sec-headers-staging.headers.stsPreload=true"
+      - "traefik.http.middlewares.sec-headers-staging.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.sec-headers-staging.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.sec-headers-staging.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.sec-headers-staging.headers.frameDeny=true"
+      - "traefik.http.middlewares.sec-headers-staging.headers.referrerPolicy=no-referrer-when-downgrade"
+      - "traefik.http.middlewares.sec-headers-staging.headers.permissionsPolicy=geolocation=(), microphone=(), camera=()"
+      - "traefik.http.middlewares.sec-headers-staging.headers.customResponseHeaders.Content-Security-Policy=default-src 'self'; connect-src 'self' https: *.onrender.com *.digitaloceanspaces.com; img-src 'self' data: blob: https: *.onrender.com *.digitaloceanspaces.com; style-src 'self' 'unsafe-inline'; font-src 'self' data: https: *.onrender.com *.digitaloceanspaces.com; script-src 'self'; frame-ancestors 'none'; base-uri 'self'"
+      # Compression middleware (staging)
+      - "traefik.http.middlewares.compress-staging.compress=true"
+      # Basic rate limiting (staging)
+      - "traefik.http.middlewares.ratelimit-staging.ratelimit.average=100"
+      - "traefik.http.middlewares.ratelimit-staging.ratelimit.burst=50"
+
+  # Redis for rate limiting / caching
+  redis:
+    image: redis:7-alpine
+    container_name: legal_services_redis_staging
+    command: ["redis-server", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    networks:
+      - legal_services_staging_net
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  postgres_data_staging:
+    driver: local
+  letsencrypt_staging:
+    driver: local
+
+networks:
+  legal_services_staging_net:
+    driver: bridge

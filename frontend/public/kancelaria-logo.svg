@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="800" viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#60a5fa" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="100%" height="100%" fill="#0f172a"/>
+  <circle cx="600" cy="400" r="380" fill="url(#g)"/>
+  <g fill="#ffffff" filter="url(#glow)">
+    <path d="M565 390h70c2 0 3 2 3 4v10c0 2-1 4-3 4h-70c-2 0-3-2-3-4v-10c0-2 1-4 3-4z" fill="#ffffff" opacity="0.9"/>
+    <!-- simple balance icon -->
+    <path d="M600 240 v160" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+    <path d="M520 300 h160" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+    <path d="M520 300 c20 50 40 90 60 120 c-40 0-70 -20-60 -40 c10 -20 20 -50 0 -80z" fill="#ffffff" opacity="0.9"/>
+    <path d="M680 300 c-20 50 -40 90 -60 120 c40 0 70 -20 60 -40 c-10 -20 -20 -50 0 -80z" fill="#ffffff" opacity="0.9"/>
+  </g>
+  <text x="600" y="520" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="64" fill="#ffffff" style="letter-spacing:4px">KANCELARIA X</text>
+  <text x="600" y="570" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="28" fill="#d1d5db" style="letter-spacing:6px">PRAWNICY</text>
+</svg>

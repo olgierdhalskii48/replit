@@ -1,0 +1,67 @@
+modules = ["nodejs-20", "web", "bash", "python-3.11", "postgresql-16"]
+
+[nix]
+channel = "stable-25_05"
+packages = ["docker", "docker-compose", "freetype", "gumbo", "harfbuzz", "jbig2dec", "lcms2", "libGL", "libGLU", "libimagequant", "libjpeg", "libjpeg_turbo", "libtiff", "libwebp", "libxcrypt", "mupdf", "openjpeg", "swig", "tcl", "tesseract", "tk", "xcbuild", "zlib"]
+
+[agent]
+expertMode = true
+integrations = ["python_database:1.0.0", "twilio_send_message:1.0.0", "python_log_in_with_replit:1.0.0", "flask_google_oauth:1.0.0", "replitmail:1.0.0", "javascript_google_analytics:1.0.0", "python_gemini:1.0.0", "javascript_stripe:1.0.0"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Frontend"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Backend"
+
+[[workflows.workflow]]
+name = "Frontend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd frontend && npm run dev"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow]]
+name = "Backend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
+waitForPort = 8000
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 8000
+externalPort = 8000
+exposeLocalhost = true
+
+[[ports]]
+localPort = 38427
+externalPort = 3000
+
+[deployment]
+deploymentTarget = "autoscale"
+run = ["bash", "-c", "python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 & cd frontend && npm run start"]
+build = ["bash", "-c", "cd frontend && npm run build && cd .. && echo 'Build completed'"]
